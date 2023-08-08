@@ -1,10 +1,14 @@
 #!/bin/sh
-
-# Welcome to the thoughtbot laptop script!
-# Be prepared to turn your laptop (or desktop, no haters here)
-# into an awesome development machine.
-
 # shellcheck disable=SC3043
+
+bold=$(tput bold)
+normal=$(tput sgr0)
+
+# Load nvm if available
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+fi
 
 fancy_echo() {
   local fmt="$1"; shift
@@ -56,39 +60,8 @@ else
   HOMEBREW_PREFIX="/usr/local"
 fi
 
-update_shell() {
-  local shell_path;
-  shell_path="$(command -v zsh)"
-
-  fancy_echo "Changing your shell to zsh ..."
-  if ! grep "$shell_path" /etc/shells > /dev/null 2>&1 ; then
-    fancy_echo "Adding '$shell_path' to /etc/shells"
-    sudo sh -c "echo $shell_path >> /etc/shells"
-  fi
-  sudo chsh -s "$shell_path" "$USER"
-}
-
-case "$SHELL" in
-  */zsh)
-    if [ "$(command -v zsh)" != '/usr/local/bin/zsh' ] ; then
-      update_shell
-    fi
-    ;;
-  *)
-    update_shell
-    ;;
-esac
-
-gem_install_or_update() {
-  if gem list "$1" --installed > /dev/null; then
-    gem update "$@"
-  else
-    gem install "$@"
-  fi
-}
-
 if ! command -v brew >/dev/null; then
-  fancy_echo "Installing Homebrew ..."
+  fancy_echo "------ Installing ${bold}Homebrew${normal} ------"
     /bin/bash -c \
       "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
@@ -98,102 +71,125 @@ if ! command -v brew >/dev/null; then
 fi
 
 if brew list | grep -Fq brew-cask; then
-  fancy_echo "Uninstalling old Homebrew-Cask ..."
+  fancy_echo "------ Uninstalling old Homebrew-Cask ------"
   brew uninstall --force brew-cask
 fi
 
-fancy_echo "Updating Homebrew formulae ..."
+fancy_echo "------ Updating ${bold}Homebrew${normal} formulae ------"
 brew update --force # https://github.com/Homebrew/brew/issues/1151
-brew bundle --file=- <<EOF
-tap "thoughtbot/formulae"
-tap "homebrew/services"
-tap "heroku/brew"
 
-# Unix
-brew "universal-ctags"
-brew "git"
-brew "openssl"
-brew "rcm"
-brew "reattach-to-user-namespace"
-brew "the_silver_searcher"
-brew "tmux"
-brew "vim"
-brew "watchman"
-brew "zsh"
+csv_file="program_list.csv"
 
-# Heroku
-brew "heroku/brew/heroku"
-brew "parity"
+# Read and process the CSV file
+tail -n +2 "$csv_file" | while IFS="," read -r appname appcommand cask customsearch; do
+  # Determine the search command based on customsearch
+  search_command=""
+  if [ -n "$customsearch" ]; then
+    search_command="$customsearch"
+  else
+    search_command="command -v $appname"
+  fi
 
-# GitHub
-brew "gh"
+  # Check if the app is installed
+  if ! eval "$search_command" &> /dev/null; then
+    fancy_echo "------ Installing ${bold}$appname${normal} ------"
+    
+    # Install the app using Homebrew
+    if [ "$cask" = "true" ]; then
+      brew install --cask "$appcommand"
+      fancy_echo "------ Installed ${bold}$appname${normal} ------"
+    else
+      brew install "$appcommand"
+      fancy_echo "------ Installed ${bold}$appname${normal} ------"
+    fi
+  else
+    fancy_echo "------ ${bold}$appname${normal} is already installed ------"
+  fi
+done
 
-# Image manipulation
-brew "imagemagick"
+fancy_echo "------ Install ${bold}Node v16.15.1${normal} ------"
+nvm install 16.15.1
+fancy_echo "------ Install ${bold}Node v16.14.0${normal} ------"
+nvm install 16.14.0
+fancy_echo "------ Install ${bold}Node v14.20.0${normal} ------"
+nvm install 14.20.0
+fancy_echo "------ Install ${bold}Yarn${normal} ------"
+sudo npm i -g yarn
 
-# PDF Rendering
-brew "poppler"
+declare -a apps=(
+    '/System/Applications/Utilities/Terminal.app'
+    '/Applications/Google Chrome.app'
+    '/Applications/Visual Studio Code.app'
+    '/Applications/MySQLWorkbench.app'
+    '/Applications/OpenVPN Connect.app'
+    '/Applications/Postman.app'
+    '/Applications/Slack.app'
+);
 
-# Programming language prerequisites and package managers
-brew "libyaml" # should come after openssl
-brew "coreutils"
-brew "yarn"
-cask "gpg-suite-no-mail"
+function add_app_to_dock {
+    app="${1}"
 
-# Databases
-brew "postgresql@14", restart_service: :changed
-brew "redis", restart_service: :changed
-EOF
+    if open -Ra "${app}"; then
+        fancy_echo "${bold}$app${normal} added to the Dock"
 
-fancy_echo "Update heroku binary ..."
-brew unlink heroku
-brew link --force heroku
+        defaults write com.apple.dock persistent-apps -array-add "<dict>
+                <key>tile-data</key>
+                <dict>
+                    <key>file-data</key>
+                    <dict>
+                        <key>_CFURLString</key>
+                        <string>${app}</string>
+                        <key>_CFURLStringType</key>
+                        <integer>0</integer>
+                    </dict>
+                </dict>
+            </dict>"
+    else
+        echo "ERROR: Application ${bold}$1${normal} not found."
+    fi
+}
 
-fancy_echo "Configuring asdf version manager ..."
-if [ ! -d "$HOME/.asdf" ]; then
-  brew install asdf
-  append_to_zshrc "source $(brew --prefix asdf)/libexec/asdf.sh" 1
+declare -a links=(
+    'https://www.gripinvest.in'
+    'http://3.109.36.87/'
+    'https://app.datadoghq.com/apm/home'
+    'https://github.com/gripinvest'
+    'https://gripinvest.atlassian.net/jira/software/c/projects/PT/boards/2'
+);
+
+function open_link_in_chrome {
+    link="${1}"
+    open -a /Applications/Google\ Chrome.app/ $link
+}
+
+fancy_echo "Laptop setup complete"
+
+echo "Do you want add the installed apps to Dock? (Y/N)"
+read add_to_dock
+
+if [ "$add_to_dock" = "Y" ]; then
+  fancy_echo "${bold}Adding install applications to Dock${normal}"
+  for app in "${apps[@]}"; do
+    add_app_to_dock "$app"
+  done
+  fancy_echo "${bold}Restarting the Dock..${normal}"
+  killall Dock
+elif [ "$add_to_dock" = "N" ]; then
+  fancy_echo "Ok! Not adding to dock"
+else
+  fancy_echo "Invalid input. Skipping the step..."
 fi
 
-alias install_asdf_plugin=add_or_update_asdf_plugin
-add_or_update_asdf_plugin() {
-  local name="$1"
-  local url="$2"
+echo "Do you want me to open important links on Google Chrome so that you can add them as bookmark? (Y/N)"
+read add_bookmark
 
-  if ! asdf plugin-list | grep -Fq "$name"; then
-    asdf plugin-add "$name" "$url"
-  else
-    asdf plugin-update "$name"
-  fi
-}
-
-# shellcheck disable=SC1091
-. "$(brew --prefix asdf)/libexec/asdf.sh"
-add_or_update_asdf_plugin "ruby" "https://github.com/asdf-vm/asdf-ruby.git"
-add_or_update_asdf_plugin "nodejs" "https://github.com/asdf-vm/asdf-nodejs.git"
-
-install_asdf_language() {
-  local language="$1"
-  local version
-  version="$(asdf list-all "$language" | grep -v "[a-z]" | tail -1)"
-
-  if ! asdf list "$language" | grep -Fq "$version"; then
-    asdf install "$language" "$version"
-    asdf global "$language" "$version"
-  fi
-}
-
-fancy_echo "Installing latest Ruby ..."
-install_asdf_language "ruby"
-gem update --system
-number_of_cores=$(sysctl -n hw.ncpu)
-bundle config --global jobs $((number_of_cores - 1))
-
-fancy_echo "Installing latest Node ..."
-install_asdf_language "nodejs"
-
-if [ -f "$HOME/.laptop.local" ]; then
-  fancy_echo "Running your customizations from ~/.laptop.local ..."
-  # shellcheck disable=SC1091
-  . "$HOME/.laptop.local"
+if [ "$add_bookmark" = "Y" ]; then
+  fancy_echo "${bold}Opening links on Chrome${normal}"
+  for link in "${links[@]}"; do
+    open_link_in_chrome "$link"
+  done
+elif [ "$add_bookmark" = "N" ]; then
+  fancy_echo "Laptop onboarding complete. Exiting now..."
+else
+  fancy_echo "Invalid input. Exiting now..."
 fi

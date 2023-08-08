@@ -1,0 +1,1 @@
+./mac 2>&1 | tee stdout.log

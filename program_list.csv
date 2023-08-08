@@ -1,0 +1,11 @@
+appname,appcommand,cask,customsearch
+git,git,false
+openssl,openssl,false
+vim,vim,false
+nvm,nvm,false
+code,visual-studio-code,true
+mysqlworkbench,mysqlworkbench,true,ls /Applications | grep -i 'MySQLWorkbench'
+postman,postman,true,ls /Applications | grep -i postman
+google-chrome,google-chrome,true,ls /Applications | grep -i 'Google Chrome'
+slack,slack,true,ls /Applications | grep -i 'Slack'
+openvpn-connect,openvpn-connect,true,ls /Applications | grep -i 'OpenVPN Connect'
