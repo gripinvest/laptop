@@ -1,4 +1,5 @@
 appname,appcommand,cask,customsearch
+openssh,openssh,false
 git,git,false
 openssl,openssl,false
 vim,vim,false

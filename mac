@@ -1,5 +1,5 @@
-#!/bin/sh
-# shellcheck disable=SC3043
+# #!/bin/sh
+# # shellcheck disable=SC3043
 
 bold=$(tput bold)
 normal=$(tput sgr0)
@@ -78,53 +78,47 @@ fi
 fancy_echo "------ Updating ${bold}Homebrew${normal} formulae ------"
 brew update --force # https://github.com/Homebrew/brew/issues/1151
 
-csv_file="program_list.csv"
+function install_applications {
+  csv_file="program_list.csv"
 
-# Read and process the CSV file
-tail -n +2 "$csv_file" | while IFS="," read -r appname appcommand cask customsearch; do
-  # Determine the search command based on customsearch
-  search_command=""
-  if [ -n "$customsearch" ]; then
-    search_command="$customsearch"
-  else
-    search_command="command -v $appname"
-  fi
-
-  # Check if the app is installed
-  if ! eval "$search_command" &> /dev/null; then
-    fancy_echo "------ Installing ${bold}$appname${normal} ------"
-    
-    # Install the app using Homebrew
-    if [ "$cask" = "true" ]; then
-      brew install --cask "$appcommand"
-      fancy_echo "------ Installed ${bold}$appname${normal} ------"
+  # Read and process the CSV file
+  tail -n +2 "$csv_file" | while IFS="," read -r appname appcommand cask customsearch; do
+    # Determine the search command based on customsearch
+    search_command=""
+    if [ -n "$customsearch" ]; then
+      search_command="$customsearch"
     else
-      brew install "$appcommand"
-      fancy_echo "------ Installed ${bold}$appname${normal} ------"
+      search_command="command -v $appname"
     fi
-  else
-    fancy_echo "------ ${bold}$appname${normal} is already installed ------"
-  fi
-done
 
-fancy_echo "------ Install ${bold}Node v16.15.1${normal} ------"
-nvm install 16.15.1
-fancy_echo "------ Install ${bold}Node v16.14.0${normal} ------"
-nvm install 16.14.0
-fancy_echo "------ Install ${bold}Node v14.20.0${normal} ------"
-nvm install 14.20.0
-fancy_echo "------ Install ${bold}Yarn${normal} ------"
-sudo npm i -g yarn
+    # Check if the app is installed
+    if ! eval "$search_command" &> /dev/null; then
+      fancy_echo "------ Installing ${bold}$appname${normal} ------"
+      
+      # Install the app using Homebrew
+      if [ "$cask" = "true" ]; then
+        brew install --cask "$appcommand"
+        fancy_echo "------ Installed ${bold}$appname${normal} ------"
+      else
+        brew install "$appcommand"
+        fancy_echo "------ Installed ${bold}$appname${normal} ------"
+      fi
+    else
+      fancy_echo "------ ${bold}$appname${normal} is already installed ------"
+    fi
+  done
+}
 
-declare -a apps=(
-    '/System/Applications/Utilities/Terminal.app'
-    '/Applications/Google Chrome.app'
-    '/Applications/Visual Studio Code.app'
-    '/Applications/MySQLWorkbench.app'
-    '/Applications/OpenVPN Connect.app'
-    '/Applications/Postman.app'
-    '/Applications/Slack.app'
-);
+function install_node_versions {
+  fancy_echo "------ Install ${bold}Node v16.15.1${normal} ------"
+  nvm install 16.15.1
+  fancy_echo "------ Install ${bold}Node v16.14.0${normal} ------"
+  nvm install 16.14.0
+  fancy_echo "------ Install ${bold}Node v14.20.0${normal} ------"
+  nvm install 14.20.0
+  fancy_echo "------ Install ${bold}Yarn${normal} ------"
+  sudo npm i -g yarn
+}
 
 function add_app_to_dock {
     app="${1}"
@@ -145,51 +139,153 @@ function add_app_to_dock {
                 </dict>
             </dict>"
     else
-        echo "ERROR: Application ${bold}$1${normal} not found."
+        fancy_echo "ERROR: Application ${bold}$1${normal} not found."
     fi
 }
 
-declare -a links=(
-    'https://www.gripinvest.in'
-    'http://3.109.36.87/'
-    'https://app.datadoghq.com/apm/home'
-    'https://github.com/gripinvest'
-    'https://gripinvest.atlassian.net/jira/software/c/projects/PT/boards/2'
-);
+function update_dock {
+  fancy_echo "Do you want to add the installed apps to Dock? (Y/N)"
+  read add_to_dock
 
-function open_link_in_chrome {
-    link="${1}"
-    open -a /Applications/Google\ Chrome.app/ $link
+  if [ "$add_to_dock" = "Y" ]; then
+    declare -a dock_apps=(
+      '/System/Applications/Utilities/Terminal.app'
+      '/Applications/Google Chrome.app'
+      '/Applications/Visual Studio Code.app'
+      '/Applications/MySQLWorkbench.app'
+      '/Applications/OpenVPN Connect.app'
+      '/Applications/Postman.app'
+      '/Applications/Slack.app'
+    );
+    fancy_echo "${bold}Adding install applications to Dock${normal}"
+    for app in "${dock_apps[@]}"; do
+      add_app_to_dock "$app"
+    done
+    fancy_echo "${bold}Restarting the Dock..${normal}"
+    killall Dock
+  elif [ "$add_to_dock" = "N" ]; then
+    fancy_echo "Ok! Not adding to dock"
+  else
+    fancy_echo "Invalid input. Skipping the step..."
+  fi
 }
 
+function open_link_in_chrome {
+  link="${1}"
+  open -a /Applications/Google\ Chrome.app/ $link
+}
+
+function setup_bookmarks {
+  fancy_echo "Do you want me to open important links on Google Chrome so that you can add them as bookmark? (Y/N)"
+  read add_bookmark
+
+  if [ "$add_bookmark" = "Y" ]; then
+    declare -a links=(
+      'https://www.gripinvest.in'
+      'http://3.109.36.87/'
+      'https://app.datadoghq.com/apm/home'
+      'https://github.com/gripinvest'
+      'https://gripinvest.atlassian.net/jira/software/c/projects/PT/boards/2'
+    );
+    fancy_echo "${bold}Opening links on Chrome${normal}"
+    for link in "${links[@]}"; do
+      open_link_in_chrome "$link"
+    done
+  elif [ "$add_bookmark" = "N" ]; then
+    fancy_echo "Laptop onboarding complete. Exiting now..."
+  else
+    fancy_echo "Invalid input. Skipping the step..."
+  fi
+}
+
+function setup_git {
+  fancy_echo "Do you want to setup github? (Y/N)"
+  read setup_github
+
+  if [ "$setup_github" = "Y" ]; then
+    fancy_echo "Enter your grip email address"
+    read grip_emailid
+    fancy_echo "${bold}Setting up github${normal}"
+    ssh-keygen -t ed25519 -C "$grip_emailid"
+    ssh-add ~/.ssh/id_ed25519
+    pub=`cat ~/.ssh/id_ed25519.pub`
+    read -p "Enter github username: " githubuser
+    fancy_echo "Using username $githubuser"
+    fancy_echo "Opening chrome with a github link. Please generate a token with read-write permissions for ${bold}SSH Keys${normal} and then copy and paste the token here..."
+    open -a /Applications/Google\ Chrome.app/ https://github.com/settings/tokens
+    read -s -p "Enter the token you just generated: " githubpass
+    curl -u "$githubuser:$githubpass" -X POST -d "{\"title\":\"`hostname`\",\"key\":\"$pub\"}" https://api.github.com/user/keys
+
+    fancy_echo "What is your role in Grip? (1/2/3)\n1. FullStack Developer\n2. Frontend Developer\n3. Backend Developer\n"
+    read role
+
+    declare -a backend_repositories=(
+      'git@github.com:gripinvest/gi-sirius.git'
+      'git@github.com:gripinvest/grip-client-web.git'
+      'git@github.com:gripinvest/grip-client-backend.git'
+      'git@github.com:gripinvest/gi-serverless.git'
+    );
+
+    declare -a frontend_repositories=(
+      'git@github.com:gripinvest/gi-client-web.git'
+      'git@github.com:gripinvest/gi-client-static.git'
+      'git@github.com:gripinvest/grip-client-web.git'
+      'git@github.com:gripinvest/grip-terminal-web.git'
+      'git@github.com:gripinvest/gi-ifa-dashboard.git'
+      'git@github.com:gripinvest/gi-strapi-cms.git'
+      'git@github.com:gripinvest/grip-terminal-forms.git'
+      'git@github.com:gripinvest/gi-design-systems.git'
+    );
+
+    declare -a fullstack_repositories=(
+      'git@github.com:gripinvest/gi-client-web.git'
+      'git@github.com:gripinvest/gi-client-static.git'
+      'git@github.com:gripinvest/grip-client-web.git'
+      'git@github.com:gripinvest/grip-terminal-web.git'
+      'git@github.com:gripinvest/gi-ifa-dashboard.git'
+      'git@github.com:gripinvest/gi-strapi-cms.git'
+      'git@github.com:gripinvest/grip-terminal-forms.git'
+      'git@github.com:gripinvest/gi-design-systems.git'
+      'git@github.com:gripinvest/gi-sirius.git'
+      'git@github.com:gripinvest/grip-client-backend.git'
+      'git@github.com:gripinvest/gi-serverless.git'
+    );
+
+    if [ "$role" = "1" ]; then
+      fancy_echo "Cloning up Grip FullStack Developer repositories..."
+      cd ~/Desktop
+      mkdir grip-code
+      cd grip-code
+      for link in "${fullstack_repositories[@]}"; do
+        git clone $link
+      done
+    elif [ "$role" = "2" ]; then
+      fancy_echo "Cloning up Grip Frontend Developer repositories..."
+      cd ~/Desktop
+      mkdir grip-code
+      cd grip-code
+      for link in "${frontend_repositories[@]}"; do
+        git clone $link
+      done
+    elif [ "$role" = "3" ]; then
+      fancy_echo "Cloning up Grip Backend Developer repositories..."
+      cd ~/Desktop
+      mkdir grip-code
+      cd grip-code
+      for link in "${backend_repositories[@]}"; do
+        git clone $link
+      done
+    else
+      fancy_echo "Invalid role. Exiting now..."
+    fi
+  fi
+}
+
+install_applications
+install_node_versions
+update_dock
 fancy_echo "Laptop setup complete"
+setup_git
 
-echo "Do you want add the installed apps to Dock? (Y/N)"
-read add_to_dock
-
-if [ "$add_to_dock" = "Y" ]; then
-  fancy_echo "${bold}Adding install applications to Dock${normal}"
-  for app in "${apps[@]}"; do
-    add_app_to_dock "$app"
-  done
-  fancy_echo "${bold}Restarting the Dock..${normal}"
-  killall Dock
-elif [ "$add_to_dock" = "N" ]; then
-  fancy_echo "Ok! Not adding to dock"
-else
-  fancy_echo "Invalid input. Skipping the step..."
-fi
-
-echo "Do you want me to open important links on Google Chrome so that you can add them as bookmark? (Y/N)"
-read add_bookmark
-
-if [ "$add_bookmark" = "Y" ]; then
-  fancy_echo "${bold}Opening links on Chrome${normal}"
-  for link in "${links[@]}"; do
-    open_link_in_chrome "$link"
-  done
-elif [ "$add_bookmark" = "N" ]; then
-  fancy_echo "Laptop onboarding complete. Exiting now..."
-else
-  fancy_echo "Invalid input. Exiting now..."
-fi
+fancy_echo "Done with the setup. Exiting now..."
+sh ./credits.sh
