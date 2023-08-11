@@ -288,4 +288,4 @@ fancy_echo "Laptop setup complete"
 setup_git
 
 fancy_echo "Done with the setup. Exiting now..."
-sh ./credits.sh
+sh credits.sh
